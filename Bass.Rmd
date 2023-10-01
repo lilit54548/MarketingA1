@@ -1,0 +1,188 @@
+---
+title: "BASS model"
+output:
+  github_document: default
+  pdf_document: default
+date: "2023-09-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Product choice - Color enhancing sunglasses.
+
+Color-Enhancing Compared to conventional sunglasses, sunglasses have an exceptional selling advantage. They are a  way of enhancing the perception of colors, creating exceptional product in the eye wear market. These sunglasses  enhance the vibrancy and clarity of the colors around you while protecting your eyes from harmful UV rays, Whether you're hiking through a forest, sitting on the beach, or simply enjoying a  day in the park.
+
+# Closest available alternative - Plano Sunglasses
+
+The closest available alternative for color - enhancing sunglasses are glasses of Luxottica brand. We have worldwide sales data of the brand  from 2007 to 2020.  The was no data about sales of polarized sunglasseswhich is closer alternative for colorized glasses that's why I decided to choose whole brand sales to make predictions on.
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(diffusion)
+```
+
+```{r}
+data  = read_excel("lux_glasses.xlsx")
+data
+```
+We have 7 year data of sales of plano sunglasses. We can see that from 2011-2017 sales increase.
+
+
+```{r}
+ggplot(data = data, aes(x = Year, y = Sales)) +
+  geom_bar(fill = '#1D7874', stat = 'identity') + ylab("Sales (In million $)")
+
+```
+
+
+
+# Diffusion Library
+
+
+```{r}
+parameters <- diffusion(data$Sales)
+p<-parameters$w['p']
+q<-parameters$w['q']
+m<-parameters$w['m']
+```
+
+
+
+```{r}
+parameters
+
+```
+the Bass Diffusion Model estimates suggest that the innovation has the potential for substantial growth in the market. However, the slow initial adoption rate (low p) should be taken into account when planning marketing and adoption strategies. The influence of imitation (high q) can work in favor of the innovation's adoption once it gains momentum.
+
+```{r}
+
+bass.f <- function(t,p,q){ ((p+q)**2/p)*exp(-(p+q)*t)/ (1+(q/p)*exp(-(p+q)*t))**2 }
+
+
+bass.F <- function(t,p,q){ (1-exp(-(p+q)*t))/ (1+(q/p)*exp(-(p+q)*t))
+}
+
+
+
+```
+The visualization of our predictions show quite good results however we will try another prediction method.
+```{r}
+data$prediction <- bass.f(1:14, p = p, q = q)*m
+ggplot(data = data, aes(x = Year, y = Sales)) + geom_bar(stat = 'identity') +
+  geom_point(aes(x=Year, y = prediction), col = 'red')
+```
+
+# Non-Linear Leasy Squares (NLS)
+```{r}
+sales = data$Sales
+t = 1:length(sales)
+bass_m = nls(sales ~ m*(((p+q)**2/p)*exp(-(p+q)*t))/(1+(q/p)*exp(-(p+q)*t))**2,
+start=c(list(m=sum(sales),p=0.02,q=0.4)), control = list(maxiter=5000, tol = 8))
+bass_m
+```
+
+```{r}
+ m <- bass_m$m$getPars()['m']
+p <- bass_m$m$getPars()['p']
+q <- bass_m$m$getPars()['q']
+```
+
+
+```{r}
+data$prediction2 <- bass.f(1:14, p = p, q = q)*m
+ggplot(data = data, aes(x = Year, y = Sales)) +
+geom_bar(stat = 'identity') + ylab("Sales (In million $)") +
+  geom_point(aes(x=Year, y = prediction), col = 'red')
+```
+We can see that second method gave the same results as first one. To have better look lets visualize the outputs.
+```{r}
+
+# Create a data frame with predictions and true values
+comparison_data <- data.frame(
+  Model1 = data$prediction,
+  Model2 = data$prediction,
+  TrueValues = data$Sales
+)
+
+ggplot(data = comparison_data, aes(x = Model1, y = Model2)) +
+  geom_point(aes(color = TrueValues)) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +  # Add a diagonal line for reference
+  labs(
+    title = "Model Comparison",
+    x = "Model 1 Predictions",
+    y = "Model 2 Predictions",
+    color = "True Values"
+  ) +
+  scale_color_gradient(low = "blue", high = "red") +  # Customize color scale
+  theme_minimal()
+
+```
+
+
+# Predictions
+
+
+```{r}
+years_ahead <- 50
+innovation_prediction <- bass.f(1:years_ahead, p = p, q = q)*m
+years <- seq(from = 2020, to = 2019 + years_ahead, by = 1)
+innovation_data <- data.frame(Year = years, Sales = innovation_prediction)
+```
+Now lets make predictions 50 years ahead.
+```{r}
+ ggplot(data = innovation_data, aes(x = Year, y = Sales)) +
+  geom_bar(stat='identity', fill = 'sienna2') + ylab("Sales (In million $)") 
+```
+Now lets find peak of our sales.
+```{r}
+innovation_data[which.max(innovation_data$Sales),]
+```
+
+```{r}
+# Assuming you have the parameters p, q, and m already estimated
+t_periods <- 1:10  # Adjust the number of periods as needed
+adopters_by_period <- bass.f(t_periods, p, q) * m
+
+adopters_data <- data.frame(
+  Period = t_periods,
+  Cumulative_Adopters = adopters_by_period
+)
+
+# Create a line plot
+ggplot(data = adopters_data, aes(x = Period, y = Cumulative_Adopters)) +
+  geom_line() +
+  labs(
+    title = "Adopters Over Time",
+    x = "Time Period",
+    y = "Adopters"
+  ) +
+  theme_minimal()
+
+```
+```{r}
+potential_market_share <- adopters_by_period / m
+
+market_share_data <- data.frame(
+  Period = t_periods,
+  Potential_Market_Share = potential_market_share * 100  # Multiply by 100 to represent as a percentage
+)
+
+# Create a line plot for potential market share
+ggplot(data = market_share_data, aes(x = Period, y = Potential_Market_Share)) +
+  geom_line() +
+  labs(
+    title = "Potential Market Share Over Time",
+    x = "Time Period",
+    y = "Potential Market Share (%)"
+  ) 
+
+```
+
+
+
+# References
+Statista Research Department (Sep 28, 2022). Global revenues of Luxottica from 2007 to 2020.
+https://www.statista.com/statistics/241567/global-net-sales-of-luxottica/
